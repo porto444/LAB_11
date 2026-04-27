@@ -3,13 +3,13 @@
 Ce dépôt contient les travaux réalisés pour l'exercice de contournement des protections de Root sur Android en utilisant l'outil d'instrumentation dynamique **Frida**.
 
 **Étudiant :** Ahmed  
-**Cible :** RootBeer Sample (Détection de Root)
+**Cible :** UnCrackable Level 1 (OWASP MSTG)
 
 ---
 
 ##  Résumé du projet
 
-L'objectif était de manipuler le comportement d'une application Android en temps réel pour masquer la présence du "Root" sur un émulateur. Nous avons injecté des scripts JavaScript dans le processus de l'application pour modifier les valeurs de retour des fonctions de sécurité.
+L'objectif était de manipuler le comportement d'une application Android sécurisée en temps réel pour masquer la présence du "Root". Contrairement à une application classique, UnCrackable 1 se ferme immédiatement s'il détecte un root ou un debugger. Nous avons dû neutraliser les mécanismes de fermeture forcée et les vérifications de fichiers sensibles.
 
 ---
 
@@ -41,25 +41,32 @@ adb shell "/data/local/tmp/frida-server &"
 
 ## 2. Vérification de la connectivité
 Vérification que l'appareil est bien détecté et que Frida peut lister les processus :
-frida-ps -Uai
+frida-ps -Uai | findstr uncrackable
 
 ---
 
 ## 3. Injection du script de Bypass (Java)
-Utilisation du script bypass_root.js pour hooker la couche Java :
+Utilisation du script bypass_root.js adapté pour UnCrackable 1. Ce script réalise trois actions critiques :
+Hook de System.exit : Empêche l'application de se fermer après avoir détecté le root.
+Hook de File.exists : Simule l'absence des binaires su et busybox.
+Logs temps réel : Affiche chaque tentative de détection bloquée dans la console.
+<img width="1309" height="687" alt="Capture d&#39;écran 2026-04-22 162321" src="https://github.com/user-attachments/assets/a58f169c-697a-4621-94a2-7de9f6dc8d99" />
 
-Modification de Build.TAGS -> release-keys.
-Forçage de isRooted() -> false.
-Blocage de la détection des fichiers su et busybox.
-frida -U -f com.scottyab.rootbeer.sample -l bypass_root.js --no-pause
 
 ---
 ## 4. Traçage Natif
-Utilisation de frida-trace pour analyser les appels système vers la couche C/C++ (NDK) :
-frida-trace -U -i open -i access com.scottyab.rootbeer.sample
+Utilisation de frida-trace pour identifier les appels système plus profonds (couche NDK) :
 
+````Bash
+frida-trace -U -f owasp.mstg.uncrackable1 -i "open*" -i "stat*"
+````
+<img width="1463" height="576" alt="Capture d&#39;écran 2026-04-22 162744" src="https://github.com/user-attachments/assets/cf7a9f12-59ad-482f-a620-f59997d35029" />
+<img width="744" height="477" alt="Capture d&#39;écran 2026-04-22 162753" src="https://github.com/user-attachments/assets/ed10893d-0a65-45ca-8b88-2a5880339cef" />
+
+
+Observation : Nous avons identifié que l'application utilise intensivement stat64() pour scanner le système de fichiers. Un second script (bypass_native.js) a été utilisé pour retourner -1 lors de l'accès aux chemins suspects identifiés dans le trace
 ---
 ## Résultats obtenus
-Test	     Avant Frida        	Après Frida
-Statut    Root	🔴 Rooted (Détecté)	🟢 Not Rooted (Contourné)
-Logs     Console	-	[+] Hook Build.TAGS successful
+<img width="1167" height="681" alt="Capture d&#39;écran 2026-04-22 164747" src="https://github.com/user-attachments/assets/7977f3a7-1f05-4849-bd4c-6b904d1f7dcd" />
+
+Conclusion : L'application UnCrackable 1 a été instrumentée avec succès. Toutes les couches de détection (Java et Native) ont été identifiées et contournées, permettant ainsi d'accéder à l'interface principale de l'application malgré l'état "Rooté" de l'émulateur.
